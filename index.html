@@ -398,6 +398,20 @@ table.ledger td.ref{color:var(--mut)} table.ledger td.by{color:var(--faint);padd
   table.ledger td.ref{display:none} .job{grid-template-columns:58px minmax(0,1fr)} .job .tag{grid-column:2;justify-self:start;margin-top:4px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* traffic light */
+.pipe{--lt:var(--signal)} .pipe.g{--lt:var(--ok)} .pipe.a{--lt:var(--warn)} .pipe.r{--lt:var(--err)}
+.pipe .fill{background:var(--lt)}
+.pipe span.done::before{background:var(--lt);border-color:var(--lt)}
+.pipe span.now{color:var(--text);font-weight:600}
+.pipe span.now::before{background:var(--lt);border-color:var(--lt);box-shadow:0 0 0 4px color-mix(in srgb,var(--lt) 22%,transparent)}
+.pipe.r span.now{color:var(--err)} .pipe.a span.now{color:var(--warn)}
+.pane-foot{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center}
+.pane-foot .legend{display:flex;align-items:center;gap:6px 8px;flex-wrap:wrap}
+.pane-foot .legend i{width:9px;height:9px;border-radius:50%;display:inline-block;margin-left:8px}
+.pane-foot .legend i:first-child{margin-left:0}
+.pane-foot .legend i.g{background:var(--ok)} .pane-foot .legend i.a{background:var(--warn)} .pane-foot .legend i.r{background:var(--err)}
+.pane-foot .tstamp{margin-left:auto}
 </style>
 </head>
 <body>
@@ -1299,18 +1313,28 @@ async function loadTrello(quiet) {
   finally { tBusy = false; if (currentVw === 'dash' && !modalOpen) renderDash(); }
 }
 const STEPS = ['To order', 'Ordered', 'Confirmed', 'Delivered'];
+// traffic light: green = on track, amber = waiting on us / not confirmed yet, red = overdue or needs checking
+function lightFor(o) {
+  const age = (Date.now() - o.created.getTime()) / 864e5;
+  if (o.check || o.stage === 'return' || (o.stage === 'order' && age >= 3)) return 'r';
+  if (o.stage === 'order' || o.stage === 'pay' || o.stage === 'back' || (!o.confirmed && ['wait', 'conf'].includes(o.stage) && age >= 5)) return 'a';
+  return 'g';
+}
+const LIGHT_WORD = { g: 'on track', a: 'waiting', r: 'needs action' };
 function pipeFor(o) {
   // where the order is: To order -> Ordered -> Confirmed -> Delivered (Back order / Return / Pick up shown in place)
   let at = { order: 0, pay: 1, conf: 2, wait: o.confirmed ? 2 : 1, pickup: 3, back: 2, return: 3 }[o.stage]; if (at == null) at = 1;
-  const labels = STEPS.slice(); let warn = false;
-  if (o.stage === 'back') { labels[2] = 'Back order'; warn = true; }
-  if (o.stage === 'return') { labels[3] = 'Return'; warn = true; }
+  if (o.check) at = 3;
+  const labels = STEPS.slice();
+  if (o.stage === 'back') labels[2] = 'Back order';
+  if (o.stage === 'return') labels[3] = 'Return';
   if (o.stage === 'pickup') labels[3] = 'Pick up';
   if (o.stage === 'pay') labels[1] = 'To pay';
-  if (o.check) { labels[3] = 'Delivered?'; }
-  const box = h('div', { class: 'pipe', role: 'img', 'aria-label': 'Status: ' + labels[o.check ? 3 : at] });
+  if (o.check) labels[3] = 'Delivered?';
+  const lt = lightFor(o);
+  const box = h('div', { class: 'pipe ' + lt, role: 'img', 'aria-label': labels[at] + ', ' + LIGHT_WORD[lt] });
   box.append(h('i', { class: 'fill', style: 'width:' + (at / 3 * 75) + '%' }));
-  labels.forEach((l, i) => box.append(h('span', { class: i < at ? 'done' : i === at && !o.check ? (warn ? 'late' : 'now') : o.check && i === 3 ? 'late' : '', text: l })));
+  labels.forEach((l, i) => box.append(h('span', { class: i < at ? 'done' : i === at ? 'now' : '', text: l })));
   return box;
 }
 const fmtShort = d => d ? d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }) : '';
@@ -1348,7 +1372,8 @@ function renderOpenOrders() {
   rows.slice(0, 60).forEach(o => box.append(orderRow(o)));
   if (oFilter === 'all' && nCheck) box.append(h('button', { class: 'checkrow', onclick: () => document.querySelector('#oSeg [data-f=check]').click() },
     h('b', { text: nCheck + ' orders' }), ' are past their delivery date or over 2 weeks old and still in To Be Delivered. Check them'));
-  st.textContent = (tErr ? 'Trello offline (' + tErr + ') - showing the last copy. ' : '') + (tAt ? 'Trello updated ' + new Date(tAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) : '');
+  st.innerHTML = ''; st.append(h('span', { class: 'legend' }, h('i', { class: 'g' }), 'On track', h('i', { class: 'a' }), 'Waiting on us or the supplier', h('i', { class: 'r' }), 'Overdue or needs checking'), h('span', { class: 'tstamp' }));
+  st.lastChild.textContent = (tErr ? 'Trello offline (' + tErr + ') - showing the last copy. ' : '') + (tAt ? 'Trello updated ' + new Date(tAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) : '');
 }
 function renderDash() {
   const all = allOrders(), L = levels();
