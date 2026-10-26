@@ -3,10 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#007ba3">
+<meta name="theme-color" content="#061d28">
 <meta name="mobile-web-app-capable" content="yes">
 
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Orders &amp; Stock">
 <title>CN Fitouts Orders &amp; Stock</title>
 <style>
   :root {
@@ -1564,7 +1568,7 @@ function renderSettings() {
   const tc = tCreds(); $('tKey').value = cfg.tKey || ''; $('tTok').value = cfg.tTok || ''; $('tKey').placeholder = tc.key && !cfg.tKey ? 'Using the W&B app connection' : '';
   $('tState').textContent = tErr ? (tErr === 'not connected' ? 'Not connected' : 'Error: ' + tErr) : tAt ? 'Connected' : '';
   $('whoName').value = who(); $('srvUrl').value = server(); $('teamCode').value = cfg.team || ''; showSync(); $('pinState').textContent = cfg.pin ? '- PIN is set' : '- no PIN';
-  $('ledgerInfo').textContent = 'App version 2026-10-26 d · ' + moves.length + ' stock movements · ' + orders.length + ' orders made here · ' + jobs.length + ' job allocations · ' + Object.keys(stock).length + ' tracked items';
+  $('ledgerInfo').textContent = 'App version 2026-10-26 e · ' + moves.length + ' stock movements · ' + orders.length + ' orders made here · ' + jobs.length + ' job allocations · ' + Object.keys(stock).length + ' tracked items';
 }
 $('whoName').addEventListener('change', e => { cfg.who = e.target.value.trim(); save.cfg(); toast('Saved'); });
 $('teamCode').addEventListener('change', e => { cfg.team = e.target.value.trim(); save.cfg(); sync(); });
