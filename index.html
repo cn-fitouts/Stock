@@ -440,6 +440,7 @@ table.stock td.big.pos{color:var(--ok)} table.stock td.big.neg{color:var(--err)}
 table.stock td.big .pk{font-family:var(--bodyf);font-size:11px;font-weight:500;color:var(--faint)}
 .modal .seg{margin-left:0;display:inline-flex}
 .scanbar #scanFeedback,.scanbar #scanFeedback.ok,.scanbar #scanFeedback.err{background:transparent;border:0;padding:0;font-weight:500;text-align:left}
+.job .jact{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
 </style>
 </head>
 <body>
@@ -532,7 +533,8 @@ table.stock td.big .pk{font-family:var(--bodyf);font-size:11px;font-weight:500;c
           <select id="stkSup"><option value="">All suppliers</option></select>
         </div>
         <div class="subtabs">
-          <button class="subtab active" id="stf_all">All</button>
+          <button class="subtab active" id="stf_recent">Recent in / out</button>
+          <button class="subtab" id="stf_all">All</button>
           <button class="subtab" id="stf_low">Below minimum</button>
           <button class="subtab" id="stf_uncounted">Not counted</button>
           <button class="subtab" id="stf_onorder">On order</button>
@@ -860,7 +862,7 @@ function showView(v) {
   ({ dash: renderDash, order: () => { renderOrder(); focusScan(); }, orders: renderOrders, stock: renderStock, jobs: renderJobs, settings: renderSettings }[v] || (() => {}))();
   window.scrollTo(0, 0);
 }
-$('nav').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.view === 'stock') setStockFilter('all'); if (b.dataset.view === 'orders') $('ordSearch').value = ''; showView(b.dataset.view); });
+$('nav').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.view === 'stock') setStockFilter('recent'); if (b.dataset.view === 'orders') $('ordSearch').value = ''; showView(b.dataset.view); });
 function updateCounters() {
   const open = allOrders().filter(o => o.status === 'sent' || o.status === 'placed').length;
   $('pillOrders').textContent = open; $('pillScan').textContent = draft.lines.length; $('pillOrders').style.display = open ? '' : 'none'; $('pillScan').style.display = draft.lines.length ? '' : 'none';
@@ -1123,7 +1125,7 @@ function lowStock() {
   const L = levels(), OO = onOrderMap();
   return Object.values(stock).filter(s => s.min != null && s.min !== '' && L[s.sku] && L[s.sku].counted && L[s.sku].onHand + (OO[s.sku] || 0) < Number(s.min));
 }
-let stockFilter = 'all';
+let stockFilter = 'recent';
 function renderStock() {
   const L = levels(), OO = onOrderMap(), q = $('stkSearch').value.trim().toLowerCase(), sup = $('stkSup').value;
   const lowList = lowStock(), lowSet = new Set(lowList.map(x => x.sku));
@@ -1134,8 +1136,9 @@ function renderStock() {
     if (stockFilter === 'low') return lowSet.has(s.sku);
     if (stockFilter === 'uncounted') return !lv || !lv.counted;
     if (stockFilter === 'onorder') return OO[s.sku] > 0;
+    if (stockFilter === 'recent') return !!(lv && lv.lastMove);
     return true;
-  }).sort((a, b) => (a.supplier + a.name).localeCompare(b.supplier + b.name));
+  }).sort(stockFilter === 'recent' ? (a, b) => (L[b.sku].lastMove > L[a.sku].lastMove ? 1 : -1) : (a, b) => (a.supplier + a.name).localeCompare(b.supplier + b.name));
   const ss = $('stkSup'), sp = ss.value; ss.innerHTML = '<option value="">All suppliers</option>';
   [...new Set(Object.values(stock).map(s => s.supplier).filter(Boolean))].sort().forEach(s => ss.append(h('option', { value: s, text: s }))); ss.value = sp;
   const counted = Object.values(stock).filter(s => L[s.sku] && L[s.sku].counted).length;
@@ -1162,8 +1165,8 @@ function renderStock() {
         h('button', { class: 'btn-secondary btn-small', text: 'History', onclick: () => historyItem(s) }))));
   });
 }
-function setStockFilter(k) { stockFilter = k; ['all', 'low', 'uncounted', 'onorder'].forEach(x => $('stf_' + x).classList.toggle('active', x === k)); }
-['all', 'low', 'uncounted', 'onorder'].forEach(k => $('stf_' + k).addEventListener('click', () => { setStockFilter(k); renderStock(); }));
+function setStockFilter(k) { stockFilter = k; ['recent', 'all', 'low', 'uncounted', 'onorder'].forEach(x => $('stf_' + x).classList.toggle('active', x === k)); }
+['recent', 'all', 'low', 'uncounted', 'onorder'].forEach(k => $('stf_' + k).addEventListener('click', () => { setStockFilter(k); renderStock(); }));
 $('stkSearch').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(renderStock, 150); });
 $('stkSup').addEventListener('change', renderStock);
 async function askNumber(title, label, val, note, minZero) {
@@ -1275,12 +1278,19 @@ $('fileJob').addEventListener('change', async e => {
       if (!ok) continue;
       lines.forEach(l => addMove(stockSku(l.code), -stockQty(l.code, l.qty), 'out', 'Job ' + d.job, l.name, server() ? key : false));
       if (server()) enqueue({ t: 'job', j: Object.assign({}, d, { key, lines: d.lines.map(l => Object.assign({}, l, { code: l.code ? stockSku(l.code) : '', qty: l.code ? stockQty(l.code, l.qty) : l.qty })) }) });
-      jobs.unshift({ key, job: d.job, jobName: d.jobName || '', rooms: d.rooms || [], drafter: d.drafter || '', created: d.created || '', imported: new Date().toISOString(), lines: d.lines });
+      jobs.unshift({ key, job: d.job, jobName: d.jobName || '', rooms: d.rooms || [], drafter: d.drafter || '', created: d.created || '', imported: new Date().toISOString(), lines: d.lines, sheet: d.sheet || null });
       save.moves(); save.jobs(); toast(d.job + ' allocated - ' + lines.length + ' line(s) out of stock');
     } catch (err) { toast(err.message, true); }
   }
   e.target.value = ''; renderAll();
 });
+// print the job's hardware sheet again (same design as CN Sync's PDF)
+function printSheet(j) {
+  if (!j.sheet || !Array.isArray(j.sheet.pages) || !j.sheet.pages.length) return toast('No sheet saved for this job - it was made before printing was added. Make the pick sheet again in CN Sync.', true);
+  const rooms = (j.rooms || []).length ? (j.rooms.length <= 3 ? j.rooms.join(', ') : j.rooms[0] + ' + ' + (j.rooms.length - 1) + ' rooms') : 'Whole job';
+  const d = Object.assign({}, j.sheet, { fileTitle: (String(j.job).match(/J\d{3,5}/i) || [j.job])[0] + ' - ' + rooms + ' - Hardware Sheet' });
+  LS.set('cs1_print', d); const w = window.open('pick-sheet.html?print=1', '_blank'); if (!w) toast('Allow pop-ups to print the hardware sheet', true);
+}
 async function undoJob(j) {
   if (!(await modal({ title: 'Undo ' + j.job + ' allocation?', body: ['Puts the hardware back into stock (e.g. job cancelled or imported twice).'], yes: 'Undo', no: 'Keep' }))) return;
   j.lines.filter(l => l.code && Number(l.qty) > 0).forEach(l => addMove(stockSku(l.code), stockQty(l.code, l.qty), 'adjust', 'Undo job ' + j.job));
@@ -1295,7 +1305,7 @@ function renderJobs() {
       h('div', { class: 'order-head' }, h('div', { class: 't', text: j.job + (j.jobName ? ' - ' + j.jobName : '') }), h('span', { class: 'chip ' + (j.undone ? 'cancelled' : 'delivered'), text: j.undone ? 'put back in stock' : 'taken from stock' })),
       h('div', { class: 'muted', text: [(j.rooms || []).join(', '), 'by ' + (j.drafter || '?'), 'pick sheet ' + fmtDate(j.created), j.lines.length + ' line(s)', ords.length ? ords.length + ' order(s)' : ''].filter(Boolean).join(' · ') }),
       ords.length ? h('div', { class: 'muted' }, ords.map(o => h('span', { class: 'chip ' + o.status, style: 'margin-right:6px', text: o.supplier + ' ' + o.status }))) : null,
-      h('div', { class: 'order-actions' }, j.undone ? null : h('button', { class: 'btn-secondary btn-small', text: 'Undo allocation', onclick: () => undoJob(j) })),
+      h('div', { class: 'order-actions' }, h('button', { class: 'btn-primary btn-small', text: 'Print hardware sheet', onclick: () => printSheet(j) }), j.undone ? null : h('button', { class: 'btn-secondary btn-small', text: 'Undo allocation', onclick: () => undoJob(j) })),
       h('details', {}, h('summary', { text: 'Hardware' }), h('table', { class: 'simple' }, j.lines.map(l => h('tr', {}, h('td', { class: 'num', text: l.qty }), h('td', { class: 'sku', text: l.code || '????' }), h('td', { text: l.name }), h('td', { class: 'muted', text: (l.decision || '') + (l.rooms ? ' · ' + l.rooms : '') })))))));
   });
 }
@@ -1533,7 +1543,7 @@ function renderDash() {
   if (!jobs.length) jb.append(h('div', { class: 'empty', text: 'No jobs yet. Pick sheets from CN Sync show here.' }));
   jobs.slice(0, 6).forEach(j => jb.append(h('div', { class: 'job', onclick: () => showView('jobs') }, h('span', { class: 'jn', text: (String(j.job).match(/J\d{3,5}/i) || [j.job])[0] }),
     h('div', {}, h('div', { class: 'nm', text: j.jobName || j.job }), h('div', { class: 'sub', text: [(j.rooms || []).join(', '), j.lines.length + ' lines' + (j.drafter ? ' by ' + j.drafter : '')].filter(Boolean).join('  —  ') })),
-    h('span', { class: 'tag' + (j.undone ? '' : ' ok'), text: j.undone ? 'Put back' : 'Taken from stock' }))));
+    h('div', { class: 'jact' }, h('span', { class: 'tag' + (j.undone ? '' : ' ok'), text: j.undone ? 'Put back' : 'Taken from stock' }), j.sheet ? h('button', { class: 'linkbtn', text: 'Print sheet', onclick: e => { e.stopPropagation(); printSheet(j); } }) : null))));
   const mv = $('dMoves'); mv.innerHTML = '';
   const ms = moves.slice().sort((a, b) => (b.at > a.at ? 1 : -1)).slice(0, 8);
   if (!ms.length) mv.append(h('div', { class: 'empty', text: 'No stock movements yet.' }));
@@ -1554,7 +1564,7 @@ function renderSettings() {
   const tc = tCreds(); $('tKey').value = cfg.tKey || ''; $('tTok').value = cfg.tTok || ''; $('tKey').placeholder = tc.key && !cfg.tKey ? 'Using the W&B app connection' : '';
   $('tState').textContent = tErr ? (tErr === 'not connected' ? 'Not connected' : 'Error: ' + tErr) : tAt ? 'Connected' : '';
   $('whoName').value = who(); $('srvUrl').value = server(); $('teamCode').value = cfg.team || ''; showSync(); $('pinState').textContent = cfg.pin ? '- PIN is set' : '- no PIN';
-  $('ledgerInfo').textContent = 'App version 2026-10-26 c · ' + moves.length + ' stock movements · ' + orders.length + ' orders made here · ' + jobs.length + ' job allocations · ' + Object.keys(stock).length + ' tracked items';
+  $('ledgerInfo').textContent = 'App version 2026-10-26 d · ' + moves.length + ' stock movements · ' + orders.length + ' orders made here · ' + jobs.length + ' job allocations · ' + Object.keys(stock).length + ' tracked items';
 }
 $('whoName').addEventListener('change', e => { cfg.who = e.target.value.trim(); save.cfg(); toast('Saved'); });
 $('teamCode').addEventListener('change', e => { cfg.team = e.target.value.trim(); save.cfg(); sync(); });
