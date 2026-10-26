@@ -7,7 +7,8 @@
 body{margin:0;word-spacing:.08em;font-family:Archivo,Arial,sans-serif;font-weight:500;color:#141414;font-size:9.5pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .wide{font-stretch:125%;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
 .top{text-align:center;font-size:11pt;letter-spacing:.22em;margin:2mm 0 5mm}
-.head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2.2pt solid #141414;padding-bottom:3mm}
+.head{display:flex;flex-direction:column;align-items:stretch;gap:2.2mm;border-bottom:2.2pt solid #141414;padding-bottom:2.6mm;margin-top:2mm}
+.head .meta{justify-content:flex-start}
 .job{font-size:34pt;font-weight:900;font-stretch:110%;line-height:.9;letter-spacing:.01em}
 .meta{display:flex;gap:7mm}
 .meta div{font-size:7pt;letter-spacing:.14em;color:#555;text-transform:uppercase}
@@ -41,7 +42,12 @@ body{margin:0;word-spacing:.08em;font-family:Archivo,Arial,sans-serif;font-weigh
 .foot .l{flex:1;border-bottom:1pt solid #141414;height:4mm}
 .empty{padding:3mm 3.5mm;color:#666;font-size:8.5pt}
 .page{break-after:page;width:188mm;transform-origin:top left}.page:last-child{break-after:auto}
-.roomtag{font-stretch:125%;font-weight:800;letter-spacing:.06em;text-transform:uppercase;font-size:12pt;margin-top:1.6mm;color:#141414}
+.titleline{flex:1;min-width:0;display:flex;align-items:baseline;gap:0 2.2mm;white-space:nowrap;overflow:hidden;font-size:24pt;line-height:1}
+.titleline .job{font-size:1em;line-height:1}
+.titleline .sep{font-weight:400;color:#888}
+.titleline .jname,.titleline .roomtag{font-weight:800;font-stretch:110%;letter-spacing:.01em;color:#141414;text-transform:none;margin:0}
+.titleline .roomtag.ov{color:#0078A8}
+.roomtag{font-weight:800}
 .roomtag.ov{color:#0078A8}
 </style></head><body><div id="app"></div>
 <script>
@@ -55,8 +61,8 @@ function q(n,u){return '<span class="q">'+e(n)+(u?'<small>'+e(u)+'</small>':'')+
 function item(l){return '<div><div class="it">'+e(l.name)+'</div>'+(l.sub?'<div class="sub">'+e(l.sub)+'</div>':'')+'</div>'}
 function page(P){
  var nOrd=0;P.order.forEach(function(s){nOrd+=s.lines.length});
- var h='<div class="page"><div class="top wide">CN Fitouts · Hardware Pick Sheet</div>';
- h+='<div class="head"><div><div class="job">'+e(D.job)+'</div><div class="roomtag'+(P.overview?' ov':'')+'">'+e(P.overview?'Whole job overview':P.room)+'</div></div><div class="meta"><div>Job name<b>'+e(D.jobName||'—')+'</b></div><div>Customer<b>'+e(D.customer||'—')+'</b></div><div>Drafter<b>'+e(D.drafter||'—')+'</b></div><div>Created<b>'+e(D.created)+'</b></div></div></div>';
+ var h='<div class="page">';
+ h+='<div class="head"><div class="titleline"><span class="job">'+e(D.job)+'</span>'+(D.jobName?'<span class="sep">–</span><span class="jname">'+e(D.jobName)+'</span>':'')+'<span class="sep">–</span><span class="roomtag'+(P.overview?' ov':'')+'">'+e(P.overview?'Whole job':P.room)+'</span></div><div class="meta"><div>Customer<b>'+e(D.customer||'—')+'</b></div><div>Drafter<b>'+e(D.drafter||'—')+'</b></div><div>Created<b>'+e(D.created)+'</b></div></div></div>';
  h+='<div class="tiles"><div class="tile red"><span class="n">'+nOrd+'</span><div><div class="t">To be ordered</div><div class="s">Drafter · not in stock</div></div></div>'+
  '<div class="tile amb"><span class="n">'+P.check.length+'</span><div><div class="t">Check stock</div><div class="s">Floor · count, then return</div></div></div>'+
  '<div class="tile grn"><span class="n">'+P.stock.length+'</span><div><div class="t">In stock</div><div class="s">Floor · pack with job</div></div></div></div>';
@@ -71,11 +77,14 @@ function page(P){
  else h+='<div class="empty">Nothing to check.</div>';
  h+='</div><div class="sec grn"><div class="sh"><span class="h">3 · In stock</span><span class="r"></span></div>';
  if(P.stock.length){h+='<div class="ch"><span></span><span>Pick</span><span>Item</span><span>Code</span></div>';
-  P.stock.forEach(function(l){h+='<div class="row"><span class="box"></span>'+q(l.qty,l.unit)+item(l)+'<span class="code">—</span></div>'})}
+  P.stock.forEach(function(l){h+='<div class="row"><span class="box"></span>'+q(l.qty,l.unit)+item(l)+'<span class="code">'+e(l.code||'—')+'</span></div>'})}
  else h+='<div class="empty">Nothing to pick from stock.</div>';
  h+='</div><div class="foot wide"><span>'+(P.overview?'Ordered by / date':'Packed by / date')+'</span><span class="l"></span></div></div>';
  return h}
 document.getElementById('app').innerHTML=(D.pages||[]).map(page).join('');
+// job - name - room on one line: shrink the text until it fits
+function fitTitles(){Array.prototype.forEach.call(document.querySelectorAll('.titleline'),function(t){var f=26;t.style.fontSize=f+'pt';while(t.scrollWidth>t.clientWidth+1&&f>11){f-=0.5;t.style.fontSize=f+'pt'}})}
+fitTitles();if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fitTitles);
 // fit every sheet on one A4 page (printable area 188 x 274mm)
 var MM=96/25.4, avail=272*MM;
 Array.prototype.forEach.call(document.querySelectorAll('.page'),function(pg){
@@ -84,4 +93,4 @@ Array.prototype.forEach.call(document.querySelectorAll('.page'),function(pg){
   if(z<1) pg.style.zoom=z;
 });
 })();
-</script><script>if(/[?&]print=1/.test(location.search)&&window.DATA&&window.DATA.pages&&window.DATA.pages.length){window.addEventListener("load",function(){setTimeout(function(){window.print()},600)})}document.title=window.DATA.fileTitle||(window.DATA.job?window.DATA.job+" - Hardware Sheet":"Hardware Sheet");</script></body></html>
+</script><script>if(/[?&]print=1/.test(location.search)&&window.DATA&&window.DATA.pages&&window.DATA.pages.length){window.addEventListener("load",function(){setTimeout(function(){window.print()},700)})}document.title=window.DATA.fileTitle||(window.DATA.job?window.DATA.job+" - Hardware Sheet":"Hardware Sheet");</script></body></html>
