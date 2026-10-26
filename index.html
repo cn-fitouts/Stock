@@ -230,7 +230,7 @@
     #scanLines .line { grid-template-columns: 40px 1fr; }
     #scanLines .line .stepper, #scanLines .line > button { grid-column: 2; justify-self: start; }
     table.stock th:nth-child(1), table.stock td:nth-child(1), table.stock th:nth-child(5), table.stock td:nth-child(5),
-    table.stock th:nth-child(7), table.stock td:nth-child(7), table.stock th:nth-child(8), table.stock td:nth-child(8) { display: none; }
+    table.stock th:nth-child(7), table.stock td:nth-child(7) { display: none; }
     table.stock .acts { white-space: normal; min-width: 92px; }
     table.stock .acts button { display: block; width: 100%; margin: 2px 0; }
     table.stock td.big { font-size: 17px; }
@@ -423,14 +423,30 @@ table.ledger td.ref{color:var(--mut)} table.ledger td.by{color:var(--faint);padd
 .pipe span.tick::before{content:'\2713';display:grid;place-items:center;width:24px;height:24px;margin-top:-5px;color:#fff;font-size:15px;font-weight:700;line-height:1;background:var(--ok);border-color:var(--ok)}
 .order.fin{background:rgba(67,197,158,.05)}
 @media (max-width:640px){ .order{grid-template-columns:4px minmax(0,1fr)} .oacts{grid-column:2;flex-direction:row;align-items:center;gap:14px} }
+
+/* order page: scanner strip + what's in the order */
+.scanbar{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--line-soft);border-radius:14px;padding:12px 16px;margin-bottom:12px}
+.scanbar svg{width:30px;height:30px;stroke:var(--signal);fill:none;stroke-width:1.7;stroke-linecap:round;flex:0 0 auto}
+.scanbar .sb-txt{flex:1;color:var(--mut);font-size:14px} .scanbar .sb-txt b{color:var(--text);font-weight:600}
+.scanbar #scanFeedback{white-space:pre-line;font-size:13px;margin-top:2px} .scanbar #scanFeedback.ok{color:var(--ok)} .scanbar #scanFeedback.err{color:var(--err)}
+.scanbar #scanInput{width:120px;min-height:36px;padding:6px 10px;font-size:13px;opacity:.7}
+.scanbar:focus-within{border-color:var(--signal)} .scanbar:focus-within #scanInput{opacity:1}
+.inorder{background:var(--panel);border:1px solid var(--line-soft);border-radius:14px;margin-bottom:12px;overflow:hidden}
+.inorder summary{cursor:pointer;padding:12px 16px;font-family:var(--display);font-weight:600;font-size:16px}
+.inorder #scanLines{padding:0 16px 10px}
+.inorder .line{border-top:1px solid var(--line-soft)}
+/* stock numbers: green in stock, red below zero */
+table.stock td.big.pos{color:var(--ok)} table.stock td.big.neg{color:var(--err)} table.stock td.big.zero{color:var(--mut)}
+table.stock td.big .pk{font-family:var(--bodyf);font-size:11px;font-weight:500;color:var(--faint)}
+.modal .seg{margin-left:0;display:inline-flex}
+.scanbar #scanFeedback,.scanbar #scanFeedback.ok,.scanbar #scanFeedback.err{background:transparent;border:0;padding:0;font-weight:500;text-align:left}
 </style>
 </head>
 <body>
 <div class="app">
   <nav class="nav" id="nav" aria-label="Main">
     <button data-view="dash" class="active"><span class="nico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="9" rx="2"/><rect x="13.5" y="3.5" width="7" height="5" rx="2"/><rect x="13.5" y="11.5" width="7" height="9" rx="2"/><rect x="3.5" y="15.5" width="7" height="5" rx="2"/></svg></span><span class="nlb">Home</span></button>
-    <button data-view="order"><span class="nico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h2l2 11h10l2-8H7.2"/><circle cx="9.5" cy="19.5" r="1.3"/><circle cx="16.5" cy="19.5" r="1.3"/></svg></span><span class="nlb">Order</span></button>
-    <button data-view="scan"><span class="pill" id="pillScan">0</span><span class="nico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16M7 12h10"/></svg></span><span class="nlb">Scan</span></button>
+    <button data-view="order"><span class="pill" id="pillScan">0</span><span class="nico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h2l2 11h10l2-8H7.2"/><circle cx="9.5" cy="19.5" r="1.3"/><circle cx="16.5" cy="19.5" r="1.3"/></svg></span><span class="nlb">Order</span></button>
     <button data-view="orders"><span class="pill" id="pillOrders">0</span><span class="nico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5 12 4l8 3.5v9L12 20l-8-3.5z"/><path d="M4 7.5 12 11l8-3.5M12 11v9"/></svg></span><span class="nlb">Orders</span></button>
     <button data-view="stock"><span class="pill warn" id="pillStock" style="display:none">0</span><span class="nico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V9l8-5 8 5v11"/><path d="M8 20v-6h8v6M8 17h8"/></svg></span><span class="nlb">Stock</span></button>
     <button data-view="jobs"><span class="nico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="6" width="16" height="14" rx="2"/><path d="M9 6V4.5h6V6M4 11h16"/></svg></span><span class="nlb">Jobs</span></button>
@@ -465,6 +481,12 @@ table.ledger td.ref{color:var(--mut)} table.ledger td.by{color:var(--faint);padd
 
     <!-- ORDER -->
     <div class="view" id="view-order">
+      <div class="scanbar">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16M7 12h10"/></svg>
+        <div class="sb-txt"><b>Scan a sticker</b> any time on this page, or tick items below.<div id="scanFeedback"></div></div>
+        <input type="text" id="scanInput" inputmode="none" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Scanner" aria-label="Scanner input">
+      </div>
+      <details class="inorder" id="inOrder"><summary><span id="scanTitle"></span> <span class="muted" id="scanCount"></span></summary><div id="scanLines"></div></details>
       <div class="subtabs">
         <button class="subtab active" id="tab_quick">Quick Order</button>
         <button class="subtab" id="tab_recent">Most Recent</button>
@@ -479,21 +501,6 @@ table.ledger td.ref{color:var(--mut)} table.ledger td.by{color:var(--faint);padd
         <button class="btn-secondary btn-small" id="btnCustom">+ Item not listed</button>
       </div>
       <div id="categories"></div>
-    </div>
-
-    <!-- SCAN -->
-    <div class="view" id="view-scan">
-      <div class="scan-hero">
-        <div class="big" id="scanTitle">Scan items</div>
-        <div class="muted">Scan each item's QR sticker. Quantity comes from the item's set quantity.</div>
-        <input type="text" id="scanInput" inputmode="none" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Scanner input">
-        <div id="scanFeedback">Ready &mdash; scan an item.</div>
-      </div>
-      <div class="card">
-        <h2>In this order <span class="muted" id="scanCount"></span></h2>
-        <div id="scanLines"></div>
-        <div style="margin-top:12px"><button class="btn-primary" id="btnDoneScan">Done &mdash; review &amp; save</button></div>
-      </div>
     </div>
 
     <!-- ORDERS -->
@@ -521,7 +528,7 @@ table.ledger td.ref{color:var(--mut)} table.ledger td.by{color:var(--faint);padd
           </div>
         </div>
         <div class="controls" style="margin-top:10px">
-          <input type="text" id="stkSearch" placeholder="Search stock: code, name, bin…" autocomplete="off">
+          <input type="text" id="stkSearch" placeholder="Search stock: code or name" autocomplete="off">
           <select id="stkSup"><option value="">All suppliers</option></select>
         </div>
         <div class="subtabs">
@@ -533,11 +540,11 @@ table.ledger td.ref{color:var(--mut)} table.ledger td.by{color:var(--faint);padd
       </div>
       <div class="card" style="padding:0;overflow-x:auto">
         <table class="stock">
-          <thead><tr><th></th><th>Item</th><th class="num">On hand</th><th class="num">On order</th><th class="num">Used 90d</th><th>Min</th><th>Bin</th><th>Last count</th><th></th></tr></thead>
+          <thead><tr><th></th><th>Item</th><th class="num">On hand</th><th class="num">On order</th><th class="num">Used 90d</th><th>Min</th><th>Last count</th><th></th></tr></thead>
           <tbody id="stkRows"></tbody>
         </table>
       </div>
-      <div class="muted" style="margin:8px 4px">On hand = last stocktake count + deliveries booked in − job allocations ± adjustments. "?" = never counted: count it once to start tracking. Pairs items (LEGRABOX sides, runners) are counted in pairs; L/R industrial packs are converted to pairs when booked in.</div>
+      <div class="muted" style="margin:8px 4px">On hand = last stocktake count + deliveries booked in − job allocations ± adjustments. "?" = never counted: count it once to start tracking. Pairs items (LEGRABOX sides, runners) are counted in pairs; L/R industrial packs become pairs when delivered. Items sold by the pack or box (screws, plugs, brads) are counted in single pieces: 1 box of 1000 delivered = +1000.</div>
     </div>
 
     <!-- JOBS -->
@@ -622,6 +629,13 @@ function canon(sku) {
 }
 const stockSku = sku => { const p = PACKS[String(sku).trim().toUpperCase()]; return p ? p[0] : canon(sku); };
 const stockQty = (sku, q) => { const n = Number(q) || 0, p = PACKS[String(sku).trim().toUpperCase()]; return p ? n * p[1] : n; };
+// some items are ordered by the pack/box ("Sold per 25/pack"): stock is kept in single pieces, so 1 ordered = 25 in stock
+function packOf(sku) {
+  const k = stockSku(sku); try { const s = stock[k]; if (s && Number(s.pack) > 0) return Number(s.pack); } catch (e) { /* stock not loaded */ }
+  const it = BY_SKU.get(String(k).toUpperCase()); const m = it && String(it.name).match(/sold per (\d[\d,]*)\s*\/\s*pack/i);
+  return m ? Number(m[1].replace(/,/g, '')) || 1 : 1;
+}
+const inQty = (sku, q) => stockQty(sku, q) * (PACKS[String(sku).trim().toUpperCase()] ? 1 : packOf(sku));
 const jobOf = o => (o.job || ((String(o.title || '') + ' ' + String(o.cardName || '')).match(/\b(J\d{3,5})\b/i) || [])[1] || '').toUpperCase();
 const sameJob = (o, job) => !!job && jobOf(o) === String(job).toUpperCase();
 
@@ -656,7 +670,7 @@ function applyState(d) {
   if (!d || !Array.isArray(d.items) || !Array.isArray(d.moves)) throw new Error('the shared stock database is not set up yet');
   d.items = d.items.filter(i => !PACKS[String(i.sku).toUpperCase()]);
   const keepLocal = Object.values(stock).filter(s => !d.items.some(i => i.sku === s.sku));
-  const next = {}; d.items.forEach(i => { next[i.sku] = { sku: i.sku, name: i.name, supplier: i.supplier, min: i.min, bin: i.bin }; });
+  const next = {}; d.items.forEach(i => { next[i.sku] = { sku: i.sku, name: i.name, supplier: i.supplier, min: i.min, bin: i.bin, pack: i.pack || null }; });
   keepLocal.forEach(s => { next[s.sku] = s; if (!queue.some(q => q.t === 'item' && q.i.sku === s.sku)) queue.push({ qid: uid('q'), t: 'item', i: s }); });
   const oldMoves = moves; stock = next; moves = d.moves; jobs = d.jobs.slice().reverse(); booked = d.booked;
   const pending = new Map(queue.filter(q => q.t === 'order').map(q => [q.o.id, q.o]));
@@ -693,7 +707,7 @@ function showSync() {
   el.className = 'sync ' + (queue.length ? 'busy' : 'ok'); el.title = '';
 }
 const queueOrder = o => { o.updatedAt = new Date().toISOString(); enqueue({ t: 'order', o: JSON.parse(JSON.stringify(o)) }); };
-const queueItem = s => enqueue({ t: 'item', i: { sku: s.sku, name: s.name, supplier: s.supplier, min: s.min, bin: s.bin } });
+const queueItem = s => enqueue({ t: 'item', i: { sku: s.sku, name: s.name, supplier: s.supplier, min: s.min, bin: s.bin, pack: s.pack || null } });
 
 const wbOrders = () => LS.get('wb4_orders', []).map(o => Object.assign({}, o, { supplier: WB, fromWbApp: true }));
 const allOrders = () => orders.concat(wbOrders());
@@ -788,7 +802,7 @@ function levels() {
 function onOrderMap() {
   const M = {};
   allOrders().filter(o => o.status === 'sent' || o.status === 'placed' || (o.fromWbApp && o.status === 'delivered' && !booked.includes(o.id)))
-    .forEach(o => o.lines.forEach(l => { const k = stockSku(l.sku); M[k] = (M[k] || 0) + stockQty(l.sku, l.qty); }));
+    .forEach(o => o.lines.forEach(l => { const k = stockSku(l.sku); M[k] = (M[k] || 0) + inQty(l.sku, l.qty); }));
   return M;
 }
 const fmtQ = q => (q == null ? '–' : (Math.round(q * 10) / 10).toString());
@@ -841,8 +855,9 @@ function showView(v) {
   $('pageWhen').textContent = v === 'dash' ? new Date().toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' }) : '';
   document.querySelectorAll('.view').forEach(x => x.classList.toggle('active', x.id === 'view-' + v));
   document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('active', b.dataset.view === v));
-  $('footer').classList.toggle('show', v === 'order' || v === 'scan');
-  ({ dash: renderDash, order: renderOrder, scan: () => { renderScan(); focusScan(); }, orders: renderOrders, stock: renderStock, jobs: renderJobs, settings: renderSettings }[v] || (() => {}))();
+  if (v === 'scan') v = 'order';
+  $('footer').classList.toggle('show', v === 'order');
+  ({ dash: renderDash, order: () => { renderOrder(); focusScan(); }, orders: renderOrders, stock: renderStock, jobs: renderJobs, settings: renderSettings }[v] || (() => {}))();
   window.scrollTo(0, 0);
 }
 $('nav').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.view === 'stock') setStockFilter('all'); if (b.dataset.view === 'orders') $('ordSearch').value = ''; showView(b.dataset.view); });
@@ -902,7 +917,7 @@ function renderOrder() {
     if (tokens.length) { const hay = (i.sku + ' ' + i.name + ' ' + i.cat + ' ' + (i.supplier || '')).toLowerCase(); if (!tokens.every(t => hay.includes(t))) return; }
     matched++; (grouped[i.cat] = grouped[i.cat] || []).push(i);
   });
-  if (!matched) { box.append(h('div', { class: 'empty', text: 'Nothing matches - try Full Catalogue, Other suppliers, or "+ Item not listed" below.' })); updateCounters(); return; }
+  if (!matched) { box.append(h('div', { class: 'empty', text: 'Nothing matches - try Full Catalogue, Other suppliers, or "+ Item not listed" below.' })); renderScan(); return; }
   Object.keys(grouped).sort().forEach(cn => {
     const items = grouped[cn], sel = items.filter(i => lineMap.has(i.sku.toUpperCase())).length;
     const head = h('div', { class: 'category-header', onclick: () => { collapsed.has(cn) ? collapsed.delete(cn) : collapsed.add(cn); renderOrder(); } },
@@ -926,7 +941,7 @@ function renderOrder() {
     if (items.length > cap) wrap.append(h('div', { class: 'empty', text: '+ ' + (items.length - cap) + ' more - search or filter to narrow down' }));
     box.append(h('div', { class: 'category' }, head, wrap));
   });
-  updateCounters();
+  renderScan();
 }
 // An item that isn't in any catalogue (new supplier / one-off)
 $('btnCustom').addEventListener('click', async () => {
@@ -951,8 +966,11 @@ $('btnCustom').addEventListener('click', async () => {
 // =====================================================================
 //  SCAN - same QR flow as the W&B app
 // =====================================================================
-function focusScan() { const i = $('scanInput'); if (currentVw === 'scan' && !modalOpen) i.focus({ preventScroll: true }); }
-setInterval(() => { if (currentVw === 'scan' && !modalOpen && (!document.activeElement || document.activeElement === document.body)) focusScan(); }, 800);
+const typingIn = el => el && (el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || (el.tagName === 'INPUT' && !['checkbox', 'radio', 'button'].includes(el.type)));
+function focusScan() { const i = $('scanInput'); if (currentVw === 'order' && !modalOpen && !typingIn(document.activeElement)) i.focus({ preventScroll: true }); }
+// a scanner types like a keyboard: on the Order page, keys that aren't going into a text box go to the scanner field
+document.addEventListener('keydown', e => { if (currentVw === 'order' && !modalOpen && !typingIn(e.target) && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) $('scanInput').focus({ preventScroll: true }); }, true);
+setInterval(() => { if (currentVw === 'order' && !modalOpen && !typingIn(document.activeElement)) focusScan(); }, 800);
 let scanChain = Promise.resolve();
 $('scanInput').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); const v = e.target.value; e.target.value = ''; if (v.trim()) scanChain = scanChain.then(() => handleScan(v)).catch(() => {}); } });
 function feedback(msg, cls) { const f = $('scanFeedback'); f.textContent = msg; f.className = cls || ''; }
@@ -963,21 +981,20 @@ async function handleScan(raw) {
   if (!items.length || bad.length) { feedback('✗ Unknown code: ' + bad.map(x => x.c).join(', '), 'err'); return; }
   const msgs = [];
   for (const { item } of items) { const q = getDefQty(item.sku); msgs.push((await requestAdd(item, q)) ? '✓ ' + item.name + '  × ' + q : 'Skipped (duplicate): ' + item.name); }
-  feedback(msgs.join('\n'), 'ok'); renderScan(); focusScan();
+  feedback(msgs.join('\n'), 'ok'); renderOrder(); $('inOrder').open = true; focusScan();
 }
 function renderScan() {
-  $('scanTitle').textContent = draft.title; $('scanCount').textContent = '- ' + draft.lines.length + ' item(s)';
+  $('scanTitle').textContent = 'In this order'; $('scanCount').textContent = draft.lines.length + ' item(s)'; $('inOrder').style.display = draft.lines.length ? '' : 'none';
   const box = $('scanLines'); box.innerHTML = '';
   if (!draft.lines.length) box.append(h('div', { class: 'empty', text: 'Nothing scanned yet.' }));
   [...draft.lines].reverse().forEach(l => box.append(h('div', { class: 'line' }, thumb(l.sku, l.supplier),
     h('div', {}, h('div', { class: 'name', text: l.name }), h('div', { class: 'sku', text: l.sku + (l.supplier && l.supplier !== WB ? ' · ' + l.supplier : '') })),
-    h('div', { class: 'stepper' }, h('button', { text: '−', onclick: () => { if (l.qty > 1) { l.qty--; save.draft(); renderScan(); } } }),
+    h('div', { class: 'stepper' }, h('button', { text: '−', onclick: () => { if (l.qty > 1) { l.qty--; save.draft(); renderOrder(); } } }),
       h('input', { type: 'number', min: '1', value: l.qty, onchange: e => { const v = parseInt(e.target.value, 10); if (v > 0) { l.qty = v; save.draft(); } } }),
-      h('button', { text: '+', onclick: () => { l.qty++; save.draft(); renderScan(); } })),
-    h('button', { class: 'btn-secondary', text: '✕', onclick: () => { removeLine(l.sku); renderScan(); } }))));
+      h('button', { text: '+', onclick: () => { l.qty++; save.draft(); renderOrder(); } })),
+    h('button', { class: 'btn-secondary', text: '✕', onclick: () => { removeLine(l.sku); renderOrder(); } }))));
   updateCounters();
 }
-$('btnDoneScan').addEventListener('click', () => showView('order'));
 
 // =====================================================================
 //  PLACE ORDER - one order per supplier. W&B gets its upload CSV.
@@ -1040,7 +1057,7 @@ async function receiveOrder(o, pseudo) {
   }
   if (pseudo) return { got, short: rest.checked ? got.map(({ l, q }) => ({ sku: l.sku, name: l.name, qty: Math.max(0, l.qty - q) })).filter(x => x.qty > 0) : [] };
   if (alreadyBooked(o)) return { dup: true };
-  got.forEach(({ l, q }) => { if (q > 0) addMove(stockSku(l.sku), stockQty(l.sku, q), 'in', 'Delivery: ' + shortTitle(o.title)); });
+  got.forEach(({ l, q }) => { if (q > 0) addMove(stockSku(l.sku), inQty(l.sku, q), 'in', 'Delivery: ' + shortTitle(o.title)); });
   const short = got.map(({ l, q }) => ({ sku: l.sku, name: l.name, qty: Math.max(0, l.qty - q) })).filter(x => x.qty > 0);
   save.moves(); return { short: rest.checked ? short : [] };
 }
@@ -1129,18 +1146,18 @@ function renderStock() {
     const lv = L[s.sku], oo = OO[s.sku] || 0, on = lv && lv.counted ? lv.onHand : null;
     const low = s.min != null && s.min !== '' && on != null && on + oo < Number(s.min);
     const minIn = h('input', { type: 'number', min: '0', value: s.min == null ? '' : s.min, placeholder: '–', class: 'mini', onchange: e => { s.min = e.target.value === '' ? null : Number(e.target.value); save.stock(); queueItem(s); renderStock(); updateCounters(); } });
-    const binIn = h('input', { type: 'text', value: s.bin || '', placeholder: 'Bin', class: 'mini wide', onchange: e => { s.bin = e.target.value.trim(); save.stock(); queueItem(s); } });
     tb.append(h('tr', { class: low ? 'low' : on == null ? 'uncounted' : '' },
       h('td', { class: 'tcell' }, thumb(s.sku, s.supplier)),
       h('td', {}, h('div', { class: 'nm', text: s.name }), h('div', { class: 'sku', text: s.sku + ' · ' + (s.supplier || '?') })),
-      h('td', { class: 'num big', title: on == null && lv ? 'Not counted yet - running total since the first movement' : '', text: on == null ? (lv ? '~' + fmtQ(lv.onHand) : '?') : fmtQ(on) }),
+      (() => { const v = on != null ? on : lv ? lv.onHand : null, pk = packOf(s.sku);
+        return h('td', { class: 'num big ' + (v == null ? '' : v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero'), title: on == null && lv ? 'Not counted yet - running total since the first movement' : '' },
+          h('div', { text: on == null ? (lv ? '~' + fmtQ(lv.onHand) : '?') : fmtQ(on) }), pk > 1 ? h('div', { class: 'pk', text: pk + ' per pack' }) : null); })(),
       h('td', { class: 'num', text: oo ? fmtQ(oo) : '' }),
       h('td', { class: 'num', text: lv && lv.used90 ? fmtQ(lv.used90) : '' }),
-      h('td', {}, minIn), h('td', {}, binIn),
+      h('td', {}, minIn),
       h('td', { class: 'muted small', text: lv && lv.lastCount ? 'Counted ' + fmtDay(lv.lastCount) : 'Never counted' }),
       h('td', { class: 'acts' },
-        h('button', { class: 'btn-secondary btn-small', text: 'Count', onclick: () => countItem(s) }),
-        h('button', { class: 'btn-secondary btn-small', text: '± Adjust', onclick: () => adjustItem(s) }),
+        h('button', { class: 'btn-secondary btn-small', text: 'Update', onclick: () => updateItem(s) }),
         h('button', { class: 'btn-primary btn-small', text: '+ Order', onclick: async () => { const it = itemOf(s.sku); if (await requestAdd(Object.assign({ supplier: s.supplier }, it), getDefQty(s.sku))) toast('Added to order - ' + draft.lines.length + ' line(s)'); renderStock(); } }),
         h('button', { class: 'btn-secondary btn-small', text: 'History', onclick: () => historyItem(s) }))));
   });
@@ -1163,17 +1180,33 @@ async function askNumber(title, label, val, note, minZero) {
     return { v, note: why.value.trim() };
   }
 }
-async function countItem(s) {
-  const lv = levels()[s.sku];
-  const r = await askNumber('Count: ' + s.name, 'On the shelf now', lv && lv.counted ? lv.onHand : '', s.sku + ' - type exactly what is on the shelf. This resets the stock level.', true);
-  if (!r) return; addMove(s.sku, r.v, 'count', 'Stocktake', r.note); save.moves(); renderStock(); updateCounters(); toast('Count saved');
-}
-async function adjustItem(s) {
-  const r = await askNumber('Adjust: ' + s.name, 'Add (+) or remove (−)', '', 'e.g. -2 for damaged, +5 for a found box, -3 used on a job without a pick sheet.');
-  if (!r || !r.v) return;
-  const lv = levels()[s.sku];
-  if (lv && lv.onHand + r.v < 0 && !(await modal({ title: 'Below zero?', tone: 'info', body: ['That leaves ' + fmtQ(lv.onHand + r.v) + ' on the shelf. A count is usually better if the number is wrong.'], yes: 'Adjust anyway', no: 'Cancel' }))) return;
-  addMove(s.sku, r.v, 'adjust', 'Manual adjustment', r.note); save.moves(); renderStock(); updateCounters(); toast('Adjusted');
+// one dialog: count what's on the shelf, or add/remove a few - plus how many come in a pack
+async function updateItem(s) {
+  const lv = levels()[s.sku], cur = lv ? lv.onHand : null;
+  let mode = 'count';
+  const tabs = h('div', { class: 'seg' }), num = h('input', { type: 'number', step: 'any', style: 'width:160px;font-size:22px' }), why = h('input', { type: 'text', placeholder: 'Note (optional), e.g. damaged, found a box', style: 'width:100%' });
+  const pack = h('input', { type: 'number', min: '1', step: '1', value: packOf(s.sku), style: 'width:110px' });
+  const lab = h('span', {}), hint = h('div', { class: 'muted' }), err = h('div', { class: 'muted', style: 'color:var(--warn);min-height:1em' });
+  const setMode = m => { mode = m; tabs.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
+    lab.textContent = m === 'count' ? 'On the shelf now' : 'Add (+) or take off (−)';
+    hint.textContent = m === 'count' ? 'Type exactly what is on the shelf, in single pieces. This resets the stock level.' : 'e.g. −2 damaged, +5 found a box, −3 used without a pick sheet.';
+    num.value = m === 'count' && lv && lv.counted && cur >= 0 ? cur : ''; setTimeout(() => num.focus(), 30); };
+  [['count', 'Count'], ['adjust', 'Add / remove']].forEach(([m, t]) => tabs.append(h('button', { type: 'button', 'data-m': m, text: t, onclick: () => setMode(m) })));
+  setMode('count');
+  for (;;) {
+    const ok = await modal({ title: s.name, tone: 'info', yes: 'Save', no: 'Cancel', body: [h('div', { class: 'muted', text: s.sku + (cur != null ? '  —  system says ' + fmtQ(cur) : '') }), h('div', { style: 'margin:10px 0' }, tabs), hint,
+      h('div', { class: 'form' }, h('label', {}, lab, num), h('label', {}, 'Note', why), h('label', {}, 'Pieces per pack (1 = sold singly)', pack)), err] });
+    if (!ok) return;
+    const v = Number(num.value), pk = Math.round(Number(pack.value));
+    if (!(pk >= 1)) { err.textContent = 'Pieces per pack must be 1 or more.'; continue; }
+    if (num.value === '' && pk === packOf(s.sku)) { err.textContent = 'Type a number.'; continue; }
+    if (num.value !== '' && !isFinite(v)) { err.textContent = 'Type a number.'; continue; }
+    if (mode === 'count' && v < 0) { err.textContent = "A count can't be below 0."; continue; }
+    if (mode === 'adjust' && num.value !== '' && cur != null && cur + v < 0 && err.dataset.neg !== '1') { err.dataset.neg = '1'; err.textContent = 'That leaves ' + fmtQ(cur + v) + ' - a count is usually better if the number is wrong. Press Save again to keep it.'; continue; }
+    if (pk !== packOf(s.sku)) { s.pack = pk > 1 ? pk : null; save.stock(); queueItem(s); }
+    if (num.value !== '' && (mode === 'count' || v)) addMove(s.sku, v, mode === 'count' ? 'count' : 'adjust', mode === 'count' ? 'Stocktake' : 'Manual adjustment', why.value.trim());
+    save.moves(); renderStock(); updateCounters(); toast(mode === 'count' && num.value !== '' ? 'Count saved' : 'Saved'); return;
+  }
 }
 function historyItem(s) {
   const ms = moves.filter(m => m.sku === s.sku).sort((a, b) => (b.at > a.at ? 1 : -1)).slice(0, 60);
@@ -1212,7 +1245,7 @@ $('btnLowToOrder').addEventListener('click', async () => {
   const L = levels(), OO = onOrderMap(); let n = 0, skip = 0;
   for (const s of low) {
     if (draft.lines.some(l => stockSku(l.sku) === s.sku)) { skip++; continue; }
-    const need = Number(s.min) - (L[s.sku].onHand + (OO[s.sku] || 0)), pack = getDefQty(s.sku);
+    const need = (Number(s.min) - (L[s.sku].onHand + (OO[s.sku] || 0))) / packOf(s.sku), pack = getDefQty(s.sku);
     addLine(Object.assign({}, itemOf(s.sku), { supplier: s.supplier }), Math.max(pack, Math.ceil(need / pack) * pack)); n++;
   }
   toast(n + ' low-stock item(s) added' + (skip ? ', ' + skip + ' already in the order' : '')); showView('order');
@@ -1259,7 +1292,7 @@ function renderJobs() {
   jobs.forEach(j => {
     const ords = allOrders().filter(o => sameJob(o, (String(j.job).match(/\bJ\d{3,5}\b/i) || [j.job])[0]));
     box.append(h('div', { class: 'card' + (j.undone ? ' faded' : '') },
-      h('div', { class: 'order-head' }, h('div', { class: 't', text: j.job + (j.jobName ? ' - ' + j.jobName : '') }), h('span', { class: 'chip ' + (j.undone ? 'cancelled' : 'delivered'), text: j.undone ? 'undone' : 'allocated' })),
+      h('div', { class: 'order-head' }, h('div', { class: 't', text: j.job + (j.jobName ? ' - ' + j.jobName : '') }), h('span', { class: 'chip ' + (j.undone ? 'cancelled' : 'delivered'), text: j.undone ? 'put back in stock' : 'taken from stock' })),
       h('div', { class: 'muted', text: [(j.rooms || []).join(', '), 'by ' + (j.drafter || '?'), 'pick sheet ' + fmtDate(j.created), j.lines.length + ' line(s)', ords.length ? ords.length + ' order(s)' : ''].filter(Boolean).join(' · ') }),
       ords.length ? h('div', { class: 'muted' }, ords.map(o => h('span', { class: 'chip ' + o.status, style: 'margin-right:6px', text: o.supplier + ' ' + o.status }))) : null,
       h('div', { class: 'order-actions' }, j.undone ? null : h('button', { class: 'btn-secondary btn-small', text: 'Undo allocation', onclick: () => undoJob(j) })),
@@ -1418,7 +1451,7 @@ async function trelloDelivered(o, part) {
   } catch (e) { return toast("Couldn't update Trello - nothing changed. " + e.message, true); }
   // stock in
   const moveIds = [];
-  got.forEach(({ l, q }) => { if (q > 0) { addMove(stockSku(l.sku), stockQty(l.sku, q), 'in', 'Delivery: ' + title); moveIds.push(moves[moves.length - 1].id); } });
+  got.forEach(({ l, q }) => { if (q > 0) { addMove(stockSku(l.sku), inQty(l.sku, q), 'in', 'Delivery: ' + title); moveIds.push(moves[moves.length - 1].id); } });
   save.moves();
   if (src.kind !== 'back') { booked.push(key); enqueue({ t: 'booked', id: key }); }
   if (src.kind === 'app' && src.rec.fromWbApp && !booked.includes(src.rec.id)) { booked.push(src.rec.id); enqueue({ t: 'booked', id: src.rec.id }); }
@@ -1476,7 +1509,7 @@ function autoBookWb() {
   booked = LS.get('cs1_booked', booked); let n = 0;
   wbOrders().filter(o => o.status === 'delivered' && !booked.includes(o.id) && !(o.cardId && booked.includes('t:' + o.cardId))).forEach(o => {
     const back = new Map((o.backorders || []).map(b => [b.sku.toUpperCase(), b.qty]));
-    o.lines.forEach(l => { const q = Math.max(0, (Number(l.qty) || 0) - (back.get(l.sku.toUpperCase()) || 0)); if (q > 0) addMove(stockSku(l.sku), stockQty(l.sku, q), 'in', 'Delivery: ' + shortTitle(o.title)); });
+    o.lines.forEach(l => { const q = Math.max(0, (Number(l.qty) || 0) - (back.get(l.sku.toUpperCase()) || 0)); if (q > 0) addMove(stockSku(l.sku), inQty(l.sku, q), 'in', 'Delivery: ' + shortTitle(o.title)); });
     booked.push(o.id); enqueue({ t: 'booked', id: o.id }); if (o.cardId) { booked.push('t:' + o.cardId); enqueue({ t: 'booked', id: 't:' + o.cardId }); } n++;
   });
   if (n) { save.moves(); save.booked(); toast(n + ' W&B delivery(ies) added to stock'); }
@@ -1500,7 +1533,7 @@ function renderDash() {
   if (!jobs.length) jb.append(h('div', { class: 'empty', text: 'No jobs yet. Pick sheets from CN Sync show here.' }));
   jobs.slice(0, 6).forEach(j => jb.append(h('div', { class: 'job', onclick: () => showView('jobs') }, h('span', { class: 'jn', text: (String(j.job).match(/J\d{3,5}/i) || [j.job])[0] }),
     h('div', {}, h('div', { class: 'nm', text: j.jobName || j.job }), h('div', { class: 'sub', text: [(j.rooms || []).join(', '), j.lines.length + ' lines' + (j.drafter ? ' by ' + j.drafter : '')].filter(Boolean).join('  —  ') })),
-    h('span', { class: 'tag' + (j.undone ? '' : ' ok'), text: j.undone ? 'Undone' : 'Out of stock' }))));
+    h('span', { class: 'tag' + (j.undone ? '' : ' ok'), text: j.undone ? 'Put back' : 'Taken from stock' }))));
   const mv = $('dMoves'); mv.innerHTML = '';
   const ms = moves.slice().sort((a, b) => (b.at > a.at ? 1 : -1)).slice(0, 8);
   if (!ms.length) mv.append(h('div', { class: 'empty', text: 'No stock movements yet.' }));
@@ -1521,7 +1554,7 @@ function renderSettings() {
   const tc = tCreds(); $('tKey').value = cfg.tKey || ''; $('tTok').value = cfg.tTok || ''; $('tKey').placeholder = tc.key && !cfg.tKey ? 'Using the W&B app connection' : '';
   $('tState').textContent = tErr ? (tErr === 'not connected' ? 'Not connected' : 'Error: ' + tErr) : tAt ? 'Connected' : '';
   $('whoName').value = who(); $('srvUrl').value = server(); $('teamCode').value = cfg.team || ''; showSync(); $('pinState').textContent = cfg.pin ? '- PIN is set' : '- no PIN';
-  $('ledgerInfo').textContent = 'App version 2026-10-26 b · ' + moves.length + ' stock movements · ' + orders.length + ' orders made here · ' + jobs.length + ' job allocations · ' + Object.keys(stock).length + ' tracked items';
+  $('ledgerInfo').textContent = 'App version 2026-10-26 c · ' + moves.length + ' stock movements · ' + orders.length + ' orders made here · ' + jobs.length + ' job allocations · ' + Object.keys(stock).length + ' tracked items';
 }
 $('whoName').addEventListener('change', e => { cfg.who = e.target.value.trim(); save.cfg(); toast('Saved'); });
 $('teamCode').addEventListener('change', e => { cfg.team = e.target.value.trim(); save.cfg(); sync(); });
@@ -1546,7 +1579,7 @@ $('fileImport').addEventListener('change', async e => {
 
 // ---------- boot ----------
 (cfg.customItems || []).forEach(i => { if (!BY_SKU.has(i.sku.toUpperCase())) { OTHER_ITEMS.push(i); BY_SKU.set(i.sku.toUpperCase(), i); } });
-function renderAll() { updateCounters(); ({ dash: renderDash, order: renderOrder, orders: renderOrders, stock: renderStock, jobs: renderJobs, settings: renderSettings, scan: renderScan }[currentVw] || renderDash)(); }
+function renderAll() { updateCounters(); ({ dash: renderDash, order: renderOrder, orders: renderOrders, stock: renderStock, jobs: renderJobs, settings: renderSettings, scan: renderOrder }[currentVw] || renderDash)(); }
 refreshCats(); updateCounters(); showView('dash'); showSync();
 setTimeout(autoBookWb, 4000);
 loadTrello(true); setInterval(() => { if (!document.hidden) loadTrello(true); }, 60000); document.addEventListener('visibilitychange', () => { if (!document.hidden) loadTrello(true); });
