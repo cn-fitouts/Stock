@@ -412,6 +412,17 @@ table.ledger td.ref{color:var(--mut)} table.ledger td.by{color:var(--faint);padd
 .pane-foot .legend i:first-child{margin-left:0}
 .pane-foot .legend i.g{background:var(--ok)} .pane-foot .legend i.a{background:var(--warn)} .pane-foot .legend i.r{background:var(--err)}
 .pane-foot .tstamp{margin-left:auto}
+
+/* stage colours + delivered tick + row actions */
+.order{grid-template-columns:4px minmax(0,1fr) 250px 112px}
+.order .t{color:var(--text);text-decoration:none} .order a.t:hover{text-decoration:underline}
+.order .m .ok{color:var(--ok)}
+.oacts{display:flex;flex-direction:column;align-items:stretch;gap:4px}
+.linkbtn{background:none;border:0;min-height:0;padding:2px 0;color:var(--mut);font-size:12px;font-weight:500;text-decoration:underline;border-radius:0}
+.linkbtn:hover{color:var(--text)}
+.pipe span.tick::before{content:'\2713';display:grid;place-items:center;width:24px;height:24px;margin-top:-5px;color:#fff;font-size:15px;font-weight:700;line-height:1;background:var(--ok);border-color:var(--ok)}
+.order.fin{background:rgba(67,197,158,.05)}
+@media (max-width:640px){ .order{grid-template-columns:4px minmax(0,1fr)} .oacts{grid-column:2;flex-direction:row;align-items:center;gap:14px} }
 </style>
 </head>
 <body>
@@ -547,6 +558,10 @@ table.ledger td.ref{color:var(--mut)} table.ledger td.by{color:var(--faint);padd
         <div class="form" style="max-width:640px"><label>Team code<input type="text" id="teamCode" inputmode="numeric" placeholder="Team code"></label>
         <label>Database address<input type="text" id="srvUrl"></label></div>
         <div style="margin-top:8px"><button class="btn-secondary" id="btnSyncNow">Sync now</button></div></div>
+      <div class="card"><h2>This device is used by</h2>
+        <div class="muted" style="margin-bottom:8px">Factory devices show orders and stock but never open Trello. Office devices (management and drafting) can open the Trello cards. Set a Settings PIN below so the factory tablet can't be switched.</div>
+        <div style="display:flex;gap:18px;flex-wrap:wrap"><label><input type="radio" name="role" value="factory" id="roleFactory"> Factory</label><label><input type="radio" name="role" value="office" id="roleOffice"> Office</label>
+        <label><input type="checkbox" id="roleDeliv"> Factory can tap Delivered</label></div></div>
       <div class="card"><h2>Trello (Orders board)</h2>
         <div class="muted" style="margin-bottom:8px">Open orders on the dashboard come live from the "2 - Orders" Trello board. If the W&amp;B ordering app is connected on this device it uses that connection automatically.</div>
         <div class="form" style="max-width:640px"><label>Trello API key<input type="text" id="tKey" autocomplete="off"></label><label>Trello token<input type="text" id="tTok" autocomplete="off"></label></div>
@@ -998,7 +1013,7 @@ $('csvBtn').addEventListener('click', () => {
 // =====================================================================
 const shortTitle = t => String(t || '').replace(/^ORDERED - /, '').replace(/ Hardware Order - /, ' · ');
 function placeOrder(o) { o.status = 'placed'; o.placedAt = new Date().toISOString(); save.orders(); queueOrder(o); renderAll(); toast('Marked placed'); }
-async function receiveOrder(o) {
+async function receiveOrder(o, pseudo) {
   // Book a delivery into stock. Quantities default to what was ordered (minus known backorders) and can be changed.
   const back = new Map((o.backorders || []).map(b => [b.sku.toUpperCase(), b.qty]));
   const inputs = o.lines.map(l => {
@@ -1023,6 +1038,7 @@ async function receiveOrder(o) {
     if (odd.length && err.dataset.lr !== odd.join()) { err.dataset.lr = odd.join(); err.textContent = 'Left and right packs differ for ' + odd.join(', ') + ' - check the count. Press Add to stock again to book it as typed.'; continue; }
     break;
   }
+  if (pseudo) return { got, short: rest.checked ? got.map(({ l, q }) => ({ sku: l.sku, name: l.name, qty: Math.max(0, l.qty - q) })).filter(x => x.qty > 0) : [] };
   if (alreadyBooked(o)) return { dup: true };
   got.forEach(({ l, q }) => { if (q > 0) addMove(stockSku(l.sku), stockQty(l.sku, q), 'in', 'Delivery: ' + shortTitle(o.title)); });
   const short = got.map(({ l, q }) => ({ sku: l.sku, name: l.name, qty: Math.max(0, l.qty - q) })).filter(x => x.qty > 0);
@@ -1055,15 +1071,14 @@ function orderCard(o) {
   const acts = h('div', { class: 'order-actions' });
   if (!o.fromWbApp) {
     if (o.status === 'sent') acts.append(h('button', { class: 'btn-secondary btn-small', text: 'Mark placed', onclick: () => placeOrder(o) }));
-    if (o.status === 'sent' || o.status === 'placed') acts.append(h('button', { class: 'btn-primary btn-small', text: 'Delivered → book into stock', onclick: () => deliverOrder(o) }), h('button', { class: 'btn-secondary btn-small', text: 'Cancel', onclick: () => cancelOrder(o) }));
+    if (o.status === 'sent' || o.status === 'placed') acts.append(h('button', { class: 'btn-primary btn-small', text: 'Delivered', onclick: () => deliverOrder(o) }), h('button', { class: 'btn-secondary btn-small', text: 'Cancel', onclick: () => cancelOrder(o) }));
     if (o.supplier === WB) acts.append(h('button', { class: 'btn-secondary btn-small', text: 'CSV', onclick: () => downloadText('wilson-bradley-order.csv', csvFor(o.lines)) }));
     acts.append(h('button', { class: 'btn-secondary btn-small', text: 'Copy order text', onclick: () => { navigator.clipboard.writeText(o.lines.map(l => l.qty + ' x ' + l.sku + ' - ' + l.name).join('\n')).then(() => toast('Copied - paste into your email')); } }));
   } else {
     acts.append(h('span', { class: 'muted', text: 'From the W&B ordering app (status updates there)' }));
-    if (o.status === 'delivered' && !booked.includes(o.id)) acts.append(h('button', { class: 'btn-primary btn-small', text: 'Book into stock', onclick: () => deliverOrder(o) }));
     if (booked.includes(o.id)) acts.append(h('span', { class: 'chip delivered', text: 'in stock' }));
   }
-  if (o.cardUrl) acts.append(h('a', { href: o.cardUrl, target: '_blank', rel: 'noopener', style: 'align-self:center;font-weight:700', text: 'Trello card' }));
+  if (o.cardUrl && isOffice()) acts.append(h('a', { href: o.cardUrl, target: '_blank', rel: 'noopener', style: 'align-self:center;font-weight:700', text: 'Trello card' }));
   const meta = [o.supplier, jobOf(o) ? 'Job ' + jobOf(o) : '', o.confirmation && o.confirmation.num ? 'Conf #' + o.confirmation.num : '', o.sentAt ? 'Sent ' + fmtDay(o.sentAt) : '', o.placedAt ? 'Placed ' + fmtDay(o.placedAt) : '',
     o.confirmation && o.confirmation.delivery ? 'Delivery ' + o.confirmation.delivery : '', o.deliveredAt ? 'Delivered ' + fmtDay(o.deliveredAt) : '', o.lines.length + ' item(s)'].filter(Boolean).join(' · ');
   return h('div', { class: 'card' }, h('div', { class: 'order-head' }, h('div', { class: 't', text: shortTitle(o.title) }), h('span', { class: 'chip ' + o.status, text: o.status })),
@@ -1268,6 +1283,8 @@ const SUPPLIERS = [[/^(wilbrad|wil ?brad|wilson ?(&|and)? ?bradley|w ?& ?b\b)/i,
   [/^hettich/i, 'Hettich'], [/^blum/i, 'Blum'], [/^nanoman/i, 'Nanoman'], [/^action/i, 'Action'], [/^linear/i, 'Linear'], [/^dunn/i, 'Dunn'], [/^topform/i, 'Topform']];
 const SUP_COL = { 'Wilson & Bradley': '#f28c28', Polytec: '#4cc9f0', Laminex: '#a78bfa', Dorset: '#f472b6', Hafele: '#e11d48', Surteco: '#34d399', 'FMIBI Glass': '#93c5fd', ForestOne: '#84cc16' };
 const supColor = s => SUP_COL[s] || '#5f8495';
+const isOffice = () => cfg.role === 'office';
+const canDeliver = () => isOffice() || cfg.factoryDeliver !== false;
 const tCreds = () => ({ key: cfg.tKey || localStorage.getItem('wb_trello_api_key') || '', token: cfg.tTok || localStorage.getItem('wb_trello_token') || '' });
 let tCards = LS.get('cs1_trello', null), tErr = '', tBusy = false, tAt = LS.get('cs1_trello_at', '');
 const MONTHS = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
@@ -1298,7 +1315,7 @@ function parseCard(c) {
   const age = (Date.now() - created.getTime()) / 864e5, today = new Date(); today.setHours(0, 0, 0, 0);
   const overdue = eta && (today - eta) / 864e5 >= 2;
   const check = (stage === 'wait' || stage === 'pickup') && (overdue || (!eta && age >= 14));
-  return { id: c.id, url: c.shortUrl || c.url, name: raw, supplier, orderNo, job, forWhat, eta, created, stage, check, cancelled, confirmed: !!(conf || eta), last: c.dateLastActivity ? new Date(c.dateLastActivity) : created };
+  return { id: c.id, url: c.shortUrl || c.url, name: raw, desc, supplier, orderNo, job, forWhat, eta, created, stage, check, cancelled, confirmed: !!(conf || eta), last: c.dateLastActivity ? new Date(c.dateLastActivity) : created };
 }
 async function loadTrello(quiet) {
   const { key, token } = tCreds(); if (!key || !token) { tErr = 'not connected'; return; }
@@ -1313,28 +1330,24 @@ async function loadTrello(quiet) {
   finally { tBusy = false; if (currentVw === 'dash' && !modalOpen) renderDash(); }
 }
 const STEPS = ['To order', 'Ordered', 'Confirmed', 'Delivered'];
-// traffic light: green = on track, amber = waiting on us / not confirmed yet, red = overdue or needs checking
+// traffic light by stage: red = still to order, amber = ordered (not confirmed) / back order, green = confirmed, green tick = delivered
 function lightFor(o) {
-  const age = (Date.now() - o.created.getTime()) / 864e5;
-  if (o.check || o.stage === 'return' || (o.stage === 'order' && age >= 3)) return 'r';
-  if (o.stage === 'order' || o.stage === 'pay' || o.stage === 'back' || (!o.confirmed && ['wait', 'conf'].includes(o.stage) && age >= 5)) return 'a';
-  return 'g';
+  if (o.stage === 'order') return 'r';
+  if (o.stage === 'done' || o.stage === 'pickup' || o.stage === 'conf' || (o.stage === 'wait' && o.confirmed)) return 'g';
+  return 'a';
 }
-const LIGHT_WORD = { g: 'on track', a: 'waiting', r: 'needs action' };
+const LIGHT_WORD = { g: 'on track', a: 'waiting on the supplier', r: 'needs ordering' };
 function pipeFor(o) {
-  // where the order is: To order -> Ordered -> Confirmed -> Delivered (Back order / Return / Pick up shown in place)
-  let at = { order: 0, pay: 1, conf: 2, wait: o.confirmed ? 2 : 1, pickup: 3, back: 2, return: 3 }[o.stage]; if (at == null) at = 1;
-  if (o.check) at = 3;
+  let at = { order: 0, pay: 1, conf: 2, wait: o.confirmed ? 2 : 1, pickup: 3, back: 2, return: 3, done: 3 }[o.stage]; if (at == null) at = 1;
   const labels = STEPS.slice();
   if (o.stage === 'back') labels[2] = 'Back order';
   if (o.stage === 'return') labels[3] = 'Return';
   if (o.stage === 'pickup') labels[3] = 'Pick up';
   if (o.stage === 'pay') labels[1] = 'To pay';
-  if (o.check) labels[3] = 'Delivered?';
   const lt = lightFor(o);
-  const box = h('div', { class: 'pipe ' + lt, role: 'img', 'aria-label': labels[at] + ', ' + LIGHT_WORD[lt] });
+  const box = h('div', { class: 'pipe ' + lt + (o.stage === 'done' ? ' fin' : ''), role: 'img', 'aria-label': labels[at] + ', ' + LIGHT_WORD[lt] });
   box.append(h('i', { class: 'fill', style: 'width:' + (at / 3 * 75) + '%' }));
-  labels.forEach((l, i) => box.append(h('span', { class: i < at ? 'done' : i === at ? 'now' : '', text: l })));
+  labels.forEach((l, i) => box.append(h('span', { class: (i < at ? 'done' : i === at ? 'now' : '') + (i === 3 && o.stage === 'done' ? ' tick' : ''), text: l })));
   return box;
 }
 const fmtShort = d => d ? d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }) : '';
@@ -1343,15 +1356,98 @@ function orderRow(o) {
   const meta = [];
   if (o.job || o.forWhat) meta.push(h('span', { class: 'jb', text: [o.job, o.forWhat.replace(new RegExp('\\b' + o.job + '\\b\\s*', 'i'), '')].filter(Boolean).join(' ').trim() || o.job }));
   if (o.orderNo) meta.push(h('span', { text: '#' + o.orderNo }));
-  if (o.check) meta.push(h('span', { class: 'bo', text: o.eta ? 'Was due ' + fmtShort(o.eta) + ' - delivered?' : 'Ordered ' + ago(o.created) + ' - delivered?' }));
+  if (o.stage === 'done') meta.push(h('span', { class: 'ok', text: 'Delivered' + (o.bookedLines ? ', ' + o.bookedLines + ' line(s) added to stock' : '') }));
+  else if (o.check) meta.push(h('span', { class: 'bo', text: o.eta ? 'Was due ' + fmtShort(o.eta) + ' - delivered?' : 'Ordered ' + ago(o.created) + ' - delivered?' }));
   else if (o.eta) meta.push(h('span', { text: (o.stage === 'pickup' ? 'Pick up ' : 'Delivery ') + fmtShort(o.eta) }));
   else meta.push(h('span', { text: 'Card added ' + ago(o.created) }));
-  return h('a', { class: 'order', href: o.url, target: '_blank', rel: 'noopener', title: 'Open the Trello card' },
+  const acts = h('div', { class: 'oacts' });
+  if (o.stage === 'done') acts.append(h('button', { class: 'btn-secondary btn-small', text: 'Undo', onclick: () => undoDelivered(o) }));
+  else if (o.stage !== 'order' && o.stage !== 'return' && canDeliver()) acts.append(h('button', { class: 'btn-primary btn-small', text: 'Delivered', title: 'Moves the Trello card to Completed and adds the items to stock', onclick: () => trelloDelivered(o, false) }),
+    h('button', { class: 'linkbtn', text: 'Part delivery', onclick: () => trelloDelivered(o, true) }));
+  return h('div', { class: 'order' + (o.stage === 'done' ? ' fin' : '') },
     h('span', { class: 'sup', style: 'background:' + supColor(o.supplier) }),
-    h('div', { class: 'otxt' }, h('div', { class: 't', text: o.supplier + (o.cancelled ? ' (cancelled)' : '') }), h('div', { class: 'm' }, meta)),
-    pipeFor(o));
+    h('div', { class: 'otxt' }, isOffice() ? h('a', { class: 't', href: o.url, target: '_blank', rel: 'noopener', title: 'Open the Trello card', text: o.supplier + (o.cancelled ? ' (cancelled)' : '') }) : h('div', { class: 't', text: o.supplier + (o.cancelled ? ' (cancelled)' : '') }), h('div', { class: 'm' }, meta)),
+    pipeFor(o), acts);
 }
 let oFilter = 'all';
+// ---------- one-tap Delivered: card -> Completed (or Back Orders), items -> stock ----------
+const TLIST = { done: '5f18f998b7b6d56147123e9d', back: '5db7880708cfe40db1d7e9b3' };
+const justDone = {};   // cardId -> { stage:'done', prevList, moveIds, bookedLines }
+async function trelloApi(method, path, params) {
+  const { key, token } = tCreds(); if (!key || !token) throw new Error('Trello is not connected (Settings)');
+  const r = await fetch('https://api.trello.com/1' + path + '?' + new URLSearchParams(Object.assign({}, params || {}, { key, token })), { method });
+  if (!r.ok) throw new Error('Trello ' + r.status + ' ' + (await r.text().catch(() => '')).slice(0, 80)); return r.json();
+}
+// W&B confirmation cards list what was confirmed: "- 24 x 750.50RB - Blum LEGRABOX ... ($420.67)"
+function linesFromDesc(desc) {
+  const sec = String(desc || '').split(/\*\*Confirmed items\*\*/i)[1]; if (!sec) return [];
+  const out = [];
+  for (const ln of sec.split('\n')) { const m = ln.match(/^\s*-\s*(\d+(?:\.\d+)?)\s*x\s*([A-Za-z0-9.\-\/+]+)\s*-\s*(.*)$/); if (m) out.push({ sku: m[2], qty: Number(m[1]), name: m[3].replace(/\s*\(\$[\d,.]+\)\s*$/, '').replace(/\*+[^*]*\*+/g, '').trim().slice(0, 140) }); else if (out.length && ln.trim() && !/^\s*-/.test(ln)) break; }
+  return out;
+}
+// what was on this order: an open back order we recorded > the app's own order > the W&B confirmation on the card
+function sourceFor(o) {
+  const ids = [o.id].concat((o.dupes || []).map(d => d.id));
+  const bo = orders.find(x => x.isBackorder && x.status === 'placed' && ids.includes(x.cardId));
+  if (bo) return { kind: 'back', rec: bo, lines: bo.lines };
+  const ao = allOrders().find(x => x.cardId && ids.includes(x.cardId) && !x.isBackorder);
+  if (ao && ao.lines && ao.lines.length) return { kind: 'app', rec: ao, lines: ao.lines };
+  const dl = [o].concat(o.dupes || []).map(x => linesFromDesc(x.desc)).find(l => l.length);
+  return { kind: dl ? 'desc' : 'none', lines: dl || [] };
+}
+const deliveredKey = o => 't:' + o.id;
+async function trelloDelivered(o, part) {
+  booked = LS.get('cs1_booked', booked);
+  const src = sourceFor(o), key = deliveredKey(o);
+  if (src.kind !== 'back' && booked.includes(key)) return toast('Already marked delivered', true);
+  const title = o.supplier + (o.orderNo ? ' #' + o.orderNo : '') + (o.job ? ' ' + o.job : '');
+  let got = src.lines.map(l => ({ l, q: Number(l.qty) || 0 })), short = [];
+  if (part) {
+    if (!src.lines.length) return toast('No item list on this card - use Delivered, or add the items on the Orders page', true);
+    const r = await receiveOrder({ title, lines: src.lines, backorders: [] }, true); if (!r) return;
+    got = r.got; short = r.short;
+  }
+  const ids = [o.id].concat((o.dupes || []).map(d => d.id)), prevList = (tCards.find(c => c.id === o.id) || {}).idList;
+  const to = short.length ? TLIST.back : TLIST.done;
+  try {
+    for (const id of ids) await trelloApi('PUT', '/cards/' + id, { idList: to, pos: 'top' });
+    const note = (short.length ? 'Part delivered' : 'Delivered') + ' - marked by ' + (who() || 'Orders & Stock') + ' on ' + new Date().toLocaleString('en-AU') +
+      (got.filter(g => g.q > 0).length ? '\nAdded to stock: ' + got.filter(g => g.q > 0).map(g => g.q + ' x ' + g.l.sku).join(', ') : '') +
+      (short.length ? '\nStill to come (back order): ' + short.map(x => x.qty + ' x ' + x.sku).join(', ') : '');
+    await trelloApi('POST', '/cards/' + o.id + '/actions/comments', { text: note.slice(0, 15000) });
+  } catch (e) { return toast("Couldn't update Trello - nothing changed. " + e.message, true); }
+  // stock in
+  const moveIds = [];
+  got.forEach(({ l, q }) => { if (q > 0) { addMove(stockSku(l.sku), stockQty(l.sku, q), 'in', 'Delivery: ' + title); moveIds.push(moves[moves.length - 1].id); } });
+  save.moves();
+  if (src.kind !== 'back') { booked.push(key); enqueue({ t: 'booked', id: key }); }
+  if (src.kind === 'app' && src.rec.fromWbApp && !booked.includes(src.rec.id)) { booked.push(src.rec.id); enqueue({ t: 'booked', id: src.rec.id }); }
+  if (src.kind === 'app' && !src.rec.fromWbApp) { src.rec.status = 'delivered'; src.rec.deliveredAt = new Date().toISOString(); queueOrder(src.rec); }
+  if (src.kind === 'back') { src.rec.status = 'delivered'; src.rec.deliveredAt = new Date().toISOString(); queueOrder(src.rec); }
+  save.booked();
+  let boRec = null;
+  if (short.length) {
+    const now = new Date().toISOString();
+    boRec = { id: uid('o'), title: 'Back order - ' + title, supplier: o.supplier, job: o.job, status: 'placed', isBackorder: true, cardId: o.id, createdAt: now, sentAt: now, placedAt: now, by: who(), lines: short };
+    orders.unshift(boRec); queueOrder(boRec);
+  }
+  save.orders();
+  justDone[o.id] = short.length ? { stage: 'back', check: false, prevList, moveIds, boRec, src } : { stage: 'done', check: false, prevList, moveIds, bookedLines: moveIds.length, src };
+  const c = tCards.find(x => x.id === o.id); if (c) c.idList = to; LS.set('cs1_trello', tCards);
+  renderAll(); toast(short.length ? 'Part delivered - ' + short.length + ' line(s) moved to Back Orders' : 'Delivered' + (moveIds.length ? ' - ' + moveIds.length + ' line(s) added to stock' : ''));
+}
+async function undoDelivered(o) {
+  const j = justDone[o.id]; if (!j) return;
+  try { for (const id of [o.id].concat((o.dupes || []).map(d => d.id))) await trelloApi('PUT', '/cards/' + id, { idList: j.prevList, pos: 'top' });
+    await trelloApi('POST', '/cards/' + o.id + '/actions/comments', { text: 'Delivered undone by ' + (who() || 'Orders & Stock') }); }
+  catch (e) { return toast("Couldn't update Trello: " + e.message, true); }
+  j.moveIds.forEach(id => { const m = moves.find(x => x.id === id); if (m) addMove(m.sku, -m.qty, 'adjust', 'Undo delivery', m.ref); });
+  save.moves();
+  const key = deliveredKey(o); if (booked.includes(key)) { booked = booked.filter(x => x !== key); save.booked(); }
+  if (j.src && j.src.rec && (j.src.kind === 'back' || (j.src.kind === 'app' && !j.src.rec.fromWbApp))) { j.src.rec.status = 'placed'; delete j.src.rec.deliveredAt; queueOrder(j.src.rec); save.orders(); }
+  const c = tCards.find(x => x.id === o.id); if (c) c.idList = j.prevList; LS.set('cs1_trello', tCards);
+  delete justDone[o.id]; renderAll(); toast('Undone - card moved back and stock taken off again');
+}
 document.querySelectorAll('#oSeg button').forEach(b => b.addEventListener('click', () => { oFilter = b.dataset.f; document.querySelectorAll('#oSeg button').forEach(x => x.classList.toggle('on', x === b)); renderDash(); }));
 function renderOpenOrders() {
   const box = $('dOpen'); box.innerHTML = '';
@@ -1361,19 +1457,29 @@ function renderOpenOrders() {
     $('oCount').textContent = ''; st.textContent = ''; return;
   }
   const seen = new Map();
-  tCards.map(parseCard).forEach(o => { const k = o.orderNo ? o.supplier + '|' + o.orderNo : o.id, ex = seen.get(k);
+  tCards.map(c => Object.assign(parseCard(c), justDone[c.id] || {})).forEach(o => { const k = o.orderNo ? o.supplier + '|' + o.orderNo : o.id, ex = seen.get(k);
     if (!ex) seen.set(k, o); else { const keep = o.confirmed && !ex.confirmed ? o : ex, other = keep === o ? ex : o; keep.dupes = (keep.dupes || []).concat(other); if (!keep.job && other.job) keep.job = other.job; if (!keep.forWhat || /^stock\b/i.test(keep.forWhat) && other.forWhat) keep.forWhat = keep.forWhat || other.forWhat; seen.set(k, keep); } });
   const all = [...seen.values()].sort((a, b) => b.created - a.created);
   const pick = { all: o => !o.check, order: o => o.stage === 'order', wait: o => ['pay', 'conf', 'wait', 'pickup', 'back'].includes(o.stage) && !o.check, check: o => o.check }[oFilter];
-  const rows = all.filter(pick), nCheck = all.filter(o => o.check).length;
+  const rows = all.filter(o => o.stage === 'done' || pick(o)), nCheck = all.filter(o => o.check).length;
   $('oCount').textContent = all.length - nCheck;
   document.querySelector('#oSeg [data-f=check]').textContent = 'Check' + (nCheck ? ' (' + nCheck + ')' : '');
   if (!rows.length) box.append(h('div', { class: 'empty', text: oFilter === 'check' ? 'Nothing to check - every delivery is up to date.' : 'No orders here.' }));
   rows.slice(0, 60).forEach(o => box.append(orderRow(o)));
   if (oFilter === 'all' && nCheck) box.append(h('button', { class: 'checkrow', onclick: () => document.querySelector('#oSeg [data-f=check]').click() },
     h('b', { text: nCheck + ' orders' }), ' are past their delivery date or over 2 weeks old and still in To Be Delivered. Check them'));
-  st.innerHTML = ''; st.append(h('span', { class: 'legend' }, h('i', { class: 'g' }), 'On track', h('i', { class: 'a' }), 'Waiting on us or the supplier', h('i', { class: 'r' }), 'Overdue or needs checking'), h('span', { class: 'tstamp' }));
+  st.innerHTML = ''; st.append(h('span', { class: 'legend' }, h('i', { class: 'r' }), 'To order', h('i', { class: 'a' }), 'Ordered, waiting on confirmation', h('i', { class: 'g' }), 'Confirmed or delivered'), h('span', { class: 'tstamp' }));
   st.lastChild.textContent = (tErr ? 'Trello offline (' + tErr + ') - showing the last copy. ' : '') + (tAt ? 'Trello updated ' + new Date(tAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) : '');
+}
+// W&B app marked an order delivered: its items go into stock automatically (once - shared 'booked' list)
+function autoBookWb() {
+  booked = LS.get('cs1_booked', booked); let n = 0;
+  wbOrders().filter(o => o.status === 'delivered' && !booked.includes(o.id) && !(o.cardId && booked.includes('t:' + o.cardId))).forEach(o => {
+    const back = new Map((o.backorders || []).map(b => [b.sku.toUpperCase(), b.qty]));
+    o.lines.forEach(l => { const q = Math.max(0, (Number(l.qty) || 0) - (back.get(l.sku.toUpperCase()) || 0)); if (q > 0) addMove(stockSku(l.sku), stockQty(l.sku, q), 'in', 'Delivery: ' + shortTitle(o.title)); });
+    booked.push(o.id); enqueue({ t: 'booked', id: o.id }); if (o.cardId) { booked.push('t:' + o.cardId); enqueue({ t: 'booked', id: 't:' + o.cardId }); } n++;
+  });
+  if (n) { save.moves(); save.booked(); toast(n + ' W&B delivery(ies) added to stock'); }
 }
 function renderDash() {
   const all = allOrders(), L = levels();
@@ -1384,9 +1490,6 @@ function renderDash() {
   $('aUncounted').textContent = uncounted ? uncounted + ' items not counted' : '';
   const att = $('dAttn'); att.innerHTML = '';
   const group = (n, label, rows) => { if (!n) return; att.append(h('h3', {}, h('b', { class: 'num', text: n }), ' ' + label)); rows.forEach(r => att.append(r)); };
-  group(toBook.length, toBook.length === 1 ? 'delivery to book in' : 'deliveries to book in', toBook.slice(0, 5).map(o => h('div', { class: 'row' },
-    h('div', {}, h('div', { class: 'nm', text: shortTitle(o.title) }), h('div', { class: 'sk', text: o.lines.length + ' items, delivered ' + fmtDay(o.deliveredAt) })),
-    h('button', { class: 'btn-primary btn-small', text: 'Book in', onclick: () => deliverOrder(o) }))));
   group(low.length, 'below minimum', low.slice(0, 8).map(s => { const on = L[s.sku].onHand, mn = Number(s.min) || 1, pct = Math.max(2, Math.min(100, on / (mn * 2.5) * 100));
     return h('div', { class: 'row' }, h('div', {}, h('div', { class: 'nm', text: s.name }), h('div', { class: 'sk', text: s.sku })),
       h('button', { class: 'btn-secondary btn-small', text: 'Order', onclick: async () => { if (await requestAdd(itemOf(s.sku), getDefQty(s.sku))) toast('Added to the order'); renderDash(); } }),
@@ -1414,14 +1517,17 @@ $('aUncounted').addEventListener('click', e => { e.preventDefault(); setStockFil
 //  SETTINGS
 // =====================================================================
 function renderSettings() {
+  $('roleOffice').checked = isOffice(); $('roleFactory').checked = !isOffice(); $('roleDeliv').checked = cfg.factoryDeliver !== false;
   const tc = tCreds(); $('tKey').value = cfg.tKey || ''; $('tTok').value = cfg.tTok || ''; $('tKey').placeholder = tc.key && !cfg.tKey ? 'Using the W&B app connection' : '';
   $('tState').textContent = tErr ? (tErr === 'not connected' ? 'Not connected' : 'Error: ' + tErr) : tAt ? 'Connected' : '';
   $('whoName').value = who(); $('srvUrl').value = server(); $('teamCode').value = cfg.team || ''; showSync(); $('pinState').textContent = cfg.pin ? '- PIN is set' : '- no PIN';
-  $('ledgerInfo').textContent = moves.length + ' stock movements · ' + orders.length + ' orders made here · ' + jobs.length + ' job allocations · ' + Object.keys(stock).length + ' tracked items';
+  $('ledgerInfo').textContent = 'App version 2026-10-26 b · ' + moves.length + ' stock movements · ' + orders.length + ' orders made here · ' + jobs.length + ' job allocations · ' + Object.keys(stock).length + ' tracked items';
 }
 $('whoName').addEventListener('change', e => { cfg.who = e.target.value.trim(); save.cfg(); toast('Saved'); });
 $('teamCode').addEventListener('change', e => { cfg.team = e.target.value.trim(); save.cfg(); sync(); });
 $('srvUrl').addEventListener('change', e => { cfg.server = e.target.value.trim(); save.cfg(); sync(); });
+['roleOffice', 'roleFactory'].forEach(id => $(id).addEventListener('change', () => { cfg.role = $('roleOffice').checked ? 'office' : 'factory'; save.cfg(); toast(isOffice() ? 'Office device - Trello cards can be opened' : 'Factory device - Trello is never opened'); }));
+$('roleDeliv').addEventListener('change', e => { cfg.factoryDeliver = e.target.checked; save.cfg(); });
 $('tSave').addEventListener('click', async () => { cfg.tKey = $('tKey').value.trim(); cfg.tTok = $('tTok').value.trim(); save.cfg(); $('tState').textContent = 'Testing…'; await loadTrello(); renderSettings(); });
 $('btnSyncNow').addEventListener('click', () => sync());
 $('pinSave').addEventListener('click', () => { const v = $('pinNew').value.trim(); if (v) cfg.pin = v; else delete cfg.pin; save.cfg(); pinOk = true; $('pinNew').value = ''; renderSettings(); toast(v ? 'PIN saved' : 'PIN removed'); });
@@ -1442,6 +1548,7 @@ $('fileImport').addEventListener('change', async e => {
 (cfg.customItems || []).forEach(i => { if (!BY_SKU.has(i.sku.toUpperCase())) { OTHER_ITEMS.push(i); BY_SKU.set(i.sku.toUpperCase(), i); } });
 function renderAll() { updateCounters(); ({ dash: renderDash, order: renderOrder, orders: renderOrders, stock: renderStock, jobs: renderJobs, settings: renderSettings, scan: renderScan }[currentVw] || renderDash)(); }
 refreshCats(); updateCounters(); showView('dash'); showSync();
+setTimeout(autoBookWb, 4000);
 loadTrello(true); setInterval(() => { if (!document.hidden) loadTrello(true); }, 60000); document.addEventListener('visibilitychange', () => { if (!document.hidden) loadTrello(true); });
 if (server()) { sync(true); setInterval(() => { if (!document.hidden) sync(true); }, 60000); document.addEventListener('visibilitychange', () => { if (!document.hidden) sync(true); }); }
 // another tab of this app (or the W&B app) changed the data: reload it, so one tab never overwrites the other
@@ -1450,7 +1557,7 @@ window.addEventListener('storage', e => {
   const map = { cs1_orders: v => { orders = v || []; }, cs1_stock: v => { stock = v || {}; }, cs1_moves: v => { moves = v || []; }, cs1_jobs: v => { jobs = v || []; },
     cs1_booked: v => { booked = v || []; }, cs1_cfg: v => { cfg = v || {}; }, cs1_queue: v => { queue = v || []; }, cs1_draft: v => { if (v && Array.isArray(v.lines)) draft = v; } };
   if (map[e.key]) { map[e.key](LS.get(e.key, null)); if (!modalOpen) renderAll(); }
-  else if (e.key === 'wb4_orders' && !modalOpen) renderAll();
+  else if (e.key === 'wb4_orders' && !modalOpen) { autoBookWb(); renderAll(); }
 });
 window.__app = { parseCard, loadTrello, setTrello: c => { tCards = c; renderDash(); }, sync, queue: () => queue, cfg: () => cfg, levels, addMove, allOrders, stock: () => stock, moves: () => moves, jobs: () => jobs, showView };
 })();
